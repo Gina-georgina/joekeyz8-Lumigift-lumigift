@@ -278,6 +278,56 @@ export async function updateGiftStatus(id: string, status: GiftStatus): Promise<
 }
 
 /**
+ * Atomically transitions a gift from `fromStatus` to `toStatus`, guarding
+ * against double-claim race conditions (issue #510).
+ *
+ * The Redis-based `claim-guard` lock is only a first-line defence — if Redis
+ * is unavailable, multiple concurrent requests could otherwise all pass the
+ * `gift.status === "unlocked"` check before any of them writes "claimed".
+ * This function performs the compare-and-set as a single synchronous
+ * operation (no `await` between the read and the write), so it is atomic
+ * with respect to the Node.js event loop: the equivalent of
+ * `UPDATE gifts SET status = $toStatus WHERE id = $id AND status = $fromStatus`.
+ *
+ * @returns The updated {@link Gift} on success, or `null` if the gift does
+ *   not exist or its current status does not equal `fromStatus` (i.e. it was
+ *   already claimed/transitioned by a concurrent request — callers should
+ *   treat this as a 409 Conflict).
+ */
+export function atomicTransitionGiftStatus(
+  id: string,
+  fromStatus: GiftStatus,
+  toStatus: GiftStatus
+): Gift | null {
+  const gift = gifts.get(id);
+  if (!gift || gift.status !== fromStatus) return null;
+
+  // No `await` occurs between the check above and the write below, so this
+  // is safe against interleaving from other async callers.
+  const previousStatus = gift.status;
+  gift.status = toStatus;
+  gift.updatedAt = new Date();
+  gifts.set(id, gift);
+  recordFunnelTransition(gift, previousStatus, toStatus);
+
+  redis
+    .publish(
+      giftStatusChannel(id),
+      JSON.stringify({
+        giftId: id,
+        previousStatus,
+        status: toStatus,
+        updatedAt: gift.updatedAt.toISOString(),
+      })
+    )
+    .catch((err: unknown) => {
+      console.error("[gift.service] Redis publish failed for gift status change:", err);
+    });
+
+  return gift;
+}
+
+/**
  * Returns all non-deleted gifts created by a given sender.
  *
  * @param senderId - The authenticated user's ID.
