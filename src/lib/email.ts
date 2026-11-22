@@ -107,6 +107,24 @@ export async function sendAccountDeletionEmail(to: string, cancelUrl: string): P
   });
 }
 
+/**
+ * Sent when a GDPR/NDPR data export job is ready to download (Issue #515).
+ * The link expires in 1 hour, matching NDPR's "secure, time-bound" guidance.
+ */
+export async function sendDataExportReadyEmail(to: string, downloadUrl: string): Promise<void> {
+  const body = `
+    <p>Your Lumigift data export is ready.</p>
+    <p>For security, this link expires in 1 hour and can only be used once.</p>
+    <p><a class="btn" href="${downloadUrl}">Download your data</a></p>
+  `;
+  await getResend().emails.send({
+    from: FROM,
+    to,
+    subject: "Your Lumigift data export is ready",
+    html: baseTemplate("Your data export is ready", body),
+  });
+}
+
 export async function sendClaimConfirmationEmail(to: string, data: GiftEmailData): Promise<void> {
   const body = `
     <p>Hi ${data.recipientName},</p>

@@ -32,6 +32,7 @@ import {
   sendUnlockReminderEmail,
   sendClaimConfirmationEmail,
   sendAccountDeletionEmail,
+  sendDataExportReadyEmail,
   type GiftEmailData,
 } from "@/lib/email";
 
@@ -132,11 +133,18 @@ export type EmailAccountDeletionScheduledPayload = {
   cancelUrl: string;
 };
 
+export type EmailDataExportReadyPayload = {
+  type: "data_export_ready";
+  to: string;
+  downloadUrl: string;
+};
+
 export type EmailPayload =
   | EmailGiftReceivedPayload
   | EmailUnlockReminderPayload
   | EmailClaimConfirmationPayload
-  | EmailAccountDeletionScheduledPayload;
+  | EmailAccountDeletionScheduledPayload
+  | EmailDataExportReadyPayload;
 
 /**
  * Union of all notification payloads.
@@ -261,6 +269,9 @@ async function dispatchEmail(payload: EmailPayload): Promise<void> {
       return;
     case "account_deletion_scheduled":
       await sendAccountDeletionEmail(payload.to, payload.cancelUrl);
+      return;
+    case "data_export_ready":
+      await sendDataExportReadyEmail(payload.to, payload.downloadUrl);
       return;
     default: {
       const _exhaustive: never = payload;
