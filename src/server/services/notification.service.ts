@@ -23,6 +23,7 @@ import {
   sendGiftInvitation,
   sendGiftClaimedAlert,
   sendGiftFundedAlert,
+  sendAccountDeletionAlert,
 } from "@/lib/sms";
 
 // ─── Email adapter imports ────────────────────────────────────────────────────
@@ -30,6 +31,7 @@ import {
   sendGiftReceivedEmail,
   sendUnlockReminderEmail,
   sendClaimConfirmationEmail,
+  sendAccountDeletionEmail,
   type GiftEmailData,
 } from "@/lib/email";
 
@@ -91,12 +93,19 @@ export type SmsGiftFundedPayload = {
   amountUsdc: string;
 };
 
+export type SmsAccountDeletionScheduledPayload = {
+  type: "account_deletion_scheduled";
+  phone: string;
+  cancelUrl: string;
+};
+
 export type SmsPayload =
   | SmsOtpPayload
   | SmsNewDeviceAlertPayload
   | SmsGiftInvitationPayload
   | SmsGiftClaimedPayload
-  | SmsGiftFundedPayload;
+  | SmsGiftFundedPayload
+  | SmsAccountDeletionScheduledPayload;
 
 // Email payload variants
 export type EmailGiftReceivedPayload = {
@@ -117,10 +126,17 @@ export type EmailClaimConfirmationPayload = {
   data: GiftEmailData;
 };
 
+export type EmailAccountDeletionScheduledPayload = {
+  type: "account_deletion_scheduled";
+  to: string;
+  cancelUrl: string;
+};
+
 export type EmailPayload =
   | EmailGiftReceivedPayload
   | EmailUnlockReminderPayload
-  | EmailClaimConfirmationPayload;
+  | EmailClaimConfirmationPayload
+  | EmailAccountDeletionScheduledPayload;
 
 /**
  * Union of all notification payloads.
@@ -215,6 +231,10 @@ async function dispatchSms(payload: SmsPayload): Promise<string | undefined> {
       await sendGiftFundedAlert(payload.phone, payload.amountUsdc);
       return undefined;
     }
+    case "account_deletion_scheduled": {
+      await sendAccountDeletionAlert(payload.phone, payload.cancelUrl);
+      return undefined;
+    }
     default: {
       // Exhaustive check — TypeScript will catch unhandled variants at compile time
       const _exhaustive: never = payload;
@@ -238,6 +258,9 @@ async function dispatchEmail(payload: EmailPayload): Promise<void> {
       return;
     case "claim_confirmation":
       await sendClaimConfirmationEmail(payload.to, payload.data);
+      return;
+    case "account_deletion_scheduled":
+      await sendAccountDeletionEmail(payload.to, payload.cancelUrl);
       return;
     default: {
       const _exhaustive: never = payload;

@@ -289,6 +289,24 @@ export async function sendGiftFundedAlert(phone: string, amountUsdc: string): Pr
   });
 }
 
+/**
+ * Sent when a user requests account deletion (Issue #516). Gives them a
+ * reactivation link to cancel the scheduled deletion within the 30-day
+ * grace period.
+ */
+export async function sendAccountDeletionAlert(phone: string, cancelUrl: string): Promise<void> {
+  await termiiClient.post("/sms/send", {
+    to: phone,
+    from: serverConfig.termii.senderId,
+    sms:
+      `Lumigift: Your account is scheduled for deletion in 30 days. ` +
+      `Didn't mean to? Cancel here: ${cancelUrl}`,
+    type: "plain",
+    channel: "generic",
+    api_key: serverConfig.termii.apiKey,
+  });
+}
+
 export async function sendExpiryGraceReminder(
   phone: string,
   amountUsdc: string,

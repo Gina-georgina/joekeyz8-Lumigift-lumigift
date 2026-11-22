@@ -84,6 +84,29 @@ export async function sendUnlockReminderEmail(to: string, data: GiftEmailData): 
   });
 }
 
+/**
+ * Sent when a user requests account deletion (Issue #516). Gives them a
+ * reactivation link that cancels the scheduled deletion within the 30-day
+ * grace period.
+ */
+export async function sendAccountDeletionEmail(to: string, cancelUrl: string): Promise<void> {
+  const body = `
+    <p>We're sorry to see you go.</p>
+    <p>Your Lumigift account is scheduled for permanent deletion in 30 days.
+    Until then your data is untouched — change your mind any time by clicking
+    the link below.</p>
+    <p><a class="btn" href="${cancelUrl}">Cancel account deletion</a></p>
+    <p>If you didn't request this, click the link above immediately to keep
+    your account.</p>
+  `;
+  await getResend().emails.send({
+    from: FROM,
+    to,
+    subject: "Your Lumigift account is scheduled for deletion",
+    html: baseTemplate("Account deletion scheduled", body),
+  });
+}
+
 export async function sendClaimConfirmationEmail(to: string, data: GiftEmailData): Promise<void> {
   const body = `
     <p>Hi ${data.recipientName},</p>
