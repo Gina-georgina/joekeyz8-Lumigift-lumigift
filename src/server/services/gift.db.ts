@@ -283,3 +283,35 @@ export async function findGiftsByRecipientHash(recipientPhoneHash: string): Prom
   );
   return rows.map(rowToGift);
 }
+
+/**
+ * Soft-delete cleanup for gifts past the retention window (issue #506).
+ *
+ * `gifts` has a DB rule that converts any physical DELETE into a no-op
+ * (see migrations/0008_soft_delete_gifts.sql) — financial records must
+ * never be hard-deleted, for audit/refund purposes. So "cleanup" here
+ * means scrubbing personally-identifiable fields (name, message, media)
+ * on rows that have been soft-deleted for longer than `retentionDays`,
+ * while leaving the id/amounts/status/timestamps intact for audit.
+ *
+ * Idempotent: already-scrubbed rows (message/media already NULL and
+ * recipient_name already set to the placeholder) are excluded by the
+ * WHERE clause, so re-running the cron is always safe.
+ *
+ * @param retentionDays - Days after deleted_at before PII is scrubbed.
+ * @returns The number of gift rows scrubbed in this run.
+ */
+export async function cleanupExpiredSoftDeletedGifts(retentionDays = 90): Promise<number> {
+  const { rowCount } = await pool.query(
+    `UPDATE gifts
+        SET recipient_name = 'Deleted recipient',
+            message = NULL,
+            media_url = NULL,
+            updated_at = NOW()
+      WHERE deleted_at IS NOT NULL
+        AND deleted_at < NOW() - ($1 || ' days')::interval
+        AND recipient_name <> 'Deleted recipient'`,
+    [retentionDays]
+  );
+  return rowCount ?? 0;
+}
