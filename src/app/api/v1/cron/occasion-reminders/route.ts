@@ -6,8 +6,9 @@ import { isAuthorizedCronRequest } from "@/server/cron-auth";
 /**
  * GET /api/v1/cron/occasion-reminders
  *
- * Called daily at 09:00 UTC by Vercel Cron (see vercel.json). Sends an SMS
- * reminder 7 days before each saved occasion with reminders enabled (issue #341).
+ * Called daily at 09:00 WAT (08:00 UTC) by Vercel Cron (see vercel.json).
+ * Sends an SMS/email reminder 7 days and 1 day before each saved occasion
+ * with reminders enabled (issue #341, extended for #519).
  */
 export const GET = async (req: NextRequest) => {
   if (!isAuthorizedCronRequest(req.headers.get("authorization"))) {

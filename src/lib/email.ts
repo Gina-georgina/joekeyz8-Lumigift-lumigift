@@ -98,3 +98,26 @@ export async function sendClaimConfirmationEmail(to: string, data: GiftEmailData
     html: baseTemplate("Lumigift claimed!", body),
   });
 }
+
+/**
+ * Sends an occasion reminder email to the occasion owner with a deep link to
+ * `/send`, pre-filled with the saved contact. Issue #519.
+ */
+export async function sendOccasionReminderEmail(
+  to: string,
+  data: { contactName: string; label: string; occasionId: string; daysUntil: number }
+): Promise<void> {
+  const when = data.daysUntil <= 1 ? "tomorrow" : `in ${data.daysUntil} days`;
+  const link = `${process.env.APP_URL ?? "https://lumigift.app"}/send?occasionId=${encodeURIComponent(data.occasionId)}`;
+  const body = `
+    <p>${data.contactName}'s ${data.label} is ${when}! 🎁</p>
+    <p>Send a time-locked Lumigift now:</p>
+    <a class="btn" href="${link}">Send a gift</a>
+  `;
+  await getResend().emails.send({
+    from: FROM,
+    to,
+    subject: `${data.contactName}'s ${data.label} is ${when}`,
+    html: baseTemplate("Occasion reminder", body),
+  });
+}

@@ -18,7 +18,7 @@
     },
     {
       "path": "/api/v1/cron/occasion-reminders",
-      "schedule": "0 9 * * *"
+      "schedule": "0 8 * * *"
     }
   ]
 }
