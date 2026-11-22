@@ -21,6 +21,8 @@ import {
   sendOtp,
   sendNewDeviceAlert,
   sendGiftInvitation,
+  sendGiftClaimedAlert,
+  sendGiftFundedAlert,
 } from "@/lib/sms";
 
 // ─── Email adapter imports ────────────────────────────────────────────────────
@@ -76,10 +78,25 @@ export type SmsGiftInvitationPayload = {
   senderName: string;
 };
 
+export type SmsGiftClaimedPayload = {
+  type: "gift_claimed";
+  phone: string;
+  recipientName: string;
+  amountUsdc: string;
+};
+
+export type SmsGiftFundedPayload = {
+  type: "gift_funded";
+  phone: string;
+  amountUsdc: string;
+};
+
 export type SmsPayload =
   | SmsOtpPayload
   | SmsNewDeviceAlertPayload
-  | SmsGiftInvitationPayload;
+  | SmsGiftInvitationPayload
+  | SmsGiftClaimedPayload
+  | SmsGiftFundedPayload;
 
 // Email payload variants
 export type EmailGiftReceivedPayload = {
@@ -188,6 +205,14 @@ async function dispatchSms(payload: SmsPayload): Promise<string | undefined> {
     }
     case "gift_invitation": {
       await sendGiftInvitation(payload.phone, payload.invitationToken, payload.senderName);
+      return undefined;
+    }
+    case "gift_claimed": {
+      await sendGiftClaimedAlert(payload.phone, payload.recipientName, payload.amountUsdc);
+      return undefined;
+    }
+    case "gift_funded": {
+      await sendGiftFundedAlert(payload.phone, payload.amountUsdc);
       return undefined;
     }
     default: {

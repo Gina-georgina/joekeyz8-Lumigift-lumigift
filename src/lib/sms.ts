@@ -248,6 +248,47 @@ export async function sendGiftInvitation(
  * @returns Resolves when the SMS has been dispatched to Termii.
  * @throws If the Termii API returns a non-2xx response.
  */
+/**
+ * Notifies the sender that their on-chain escrow has been claimed by the
+ * recipient (dispatched from the Stellar event indexer, issue #517).
+ *
+ * @param phone - E.164-formatted destination phone number (sender's).
+ * @param recipientName - Display name of the recipient who claimed the gift.
+ * @param amountUsdc - The gift amount in USDC.
+ */
+export async function sendGiftClaimedAlert(
+  phone: string,
+  recipientName: string,
+  amountUsdc: string
+): Promise<void> {
+  await termiiClient.post("/sms/send", {
+    to: phone,
+    from: serverConfig.termii.senderId,
+    sms: `Lumigift: 🎉 ${recipientName} just claimed your ${amountUsdc} USDC gift!`,
+    type: "plain",
+    channel: "generic",
+    api_key: serverConfig.termii.apiKey,
+  });
+}
+
+/**
+ * Notifies the recipient that their gift escrow has been funded on-chain
+ * (dispatched from the Stellar event indexer, issue #517).
+ *
+ * @param phone - E.164-formatted destination phone number (recipient's).
+ * @param amountUsdc - The gift amount in USDC.
+ */
+export async function sendGiftFundedAlert(phone: string, amountUsdc: string): Promise<void> {
+  await termiiClient.post("/sms/send", {
+    to: phone,
+    from: serverConfig.termii.senderId,
+    sms: `Lumigift: 🎁 A ${amountUsdc} USDC gift has been funded for you! Open the app to claim it.`,
+    type: "plain",
+    channel: "generic",
+    api_key: serverConfig.termii.apiKey,
+  });
+}
+
 export async function sendExpiryGraceReminder(
   phone: string,
   amountUsdc: string,
