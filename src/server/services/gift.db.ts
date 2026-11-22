@@ -34,6 +34,10 @@ export interface CreateGiftDbInput {
   provider?: "paystack" | "stripe";
   /** Provider-specific payment reference (e.g. Paystack reference) */
   paymentReference: string;
+  /** Currency actually charged: "ngn" (Paystack) or "usd"/"gbp"/"eur" (Stripe). Issue #527. */
+  paymentCurrency?: string;
+  /** Amount charged in paymentCurrency major units, locked at order creation. Issue #527. */
+  paymentAmount?: number;
 }
 
 export interface GiftDbRow {
@@ -52,6 +56,8 @@ export interface GiftDbRow {
   contract_id: string | null;
   stellar_tx_hash: string | null;
   claim_tx_hash: string | null;
+  payment_currency?: string | null;
+  payment_amount?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -75,9 +81,28 @@ export function rowToGift(row: GiftDbRow): Gift {
     contractId: row.contract_id ?? undefined,
     stellarTxHash: row.stellar_tx_hash ?? undefined,
     claimTxHash: row.claim_tx_hash ?? undefined,
+    paymentCurrency: row.payment_currency ?? undefined,
+    paymentAmount: row.payment_amount != null ? Number(row.payment_amount) : undefined,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
+}
+
+/**
+ * Records the Stripe currency/amount locked for a gift after the
+ * PaymentIntent is created (the exact minor-unit amount is only known once
+ * the FX conversion runs, which happens after the initial insert). Issue #527.
+ */
+export async function recordPaymentCurrency(
+  giftId: string,
+  currency: string,
+  amount: number
+): Promise<void> {
+  await pool.query("UPDATE gifts SET payment_currency = $1, payment_amount = $2 WHERE id = $3", [
+    currency,
+    amount,
+    giftId,
+  ]);
 }
 
 // ─── Transactional writes ─────────────────────────────────────────────────────
@@ -109,11 +134,11 @@ export async function persistGiftWithPaymentRef(input: CreateGiftDbInput): Promi
       `INSERT INTO gifts (
           id, sender_id, recipient_phone_hash, recipient_name, recipient_email,
           amount_ngn, amount_usdc, message, media_url, unlock_at,
-          theme_id, status, created_at, updated_at
+          theme_id, payment_currency, payment_amount, status, created_at, updated_at
         ) VALUES (
           $1, $2, $3, $4, $5,
           $6, $7, $8, $9, $10,
-          $11, 'pending_payment', NOW(), NOW()
+          $11, $12, $13, 'pending_payment', NOW(), NOW()
         )
         RETURNING *`,
       [
@@ -128,6 +153,8 @@ export async function persistGiftWithPaymentRef(input: CreateGiftDbInput): Promi
         input.mediaUrl ?? null,
         input.unlockAt,
         input.themeId ?? null,
+        input.paymentCurrency ?? "ngn",
+        input.paymentAmount ?? null,
       ]
     );
 

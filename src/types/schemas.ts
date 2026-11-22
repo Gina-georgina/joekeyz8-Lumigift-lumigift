@@ -37,6 +37,8 @@ export const createGiftSchema = z.strictObject({
     .datetime()
     .refine((val) => new Date(val) > new Date(), "Unlock date must be in the future"),
   paymentProvider: z.enum(["paystack", "stripe"]),
+  /** Only used for Stripe; Paystack is always NGN. Defaults to USD for Stripe. */
+  currency: z.enum(["usd", "gbp", "eur"]).optional(),
   recipientIsRegistered: z.boolean().default(false),
   recipientEmail: z.string().email("Enter a valid email address").optional(),
   themeId: z.enum(GIFT_THEME_IDS).optional(),

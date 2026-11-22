@@ -26,6 +26,28 @@ function getStripe(): Stripe {
 
 // ─── Exchange rate helper ─────────────────────────────────────────────────────
 import { getExchangeRate, lockExchangeRate } from "@/server/services/exchange-rate.service";
+import { recordPaymentCurrency } from "./gift.db";
+
+/**
+ * Approximate USD cross-rates used to convert the live NGN/USD rate into
+ * GBP/EUR for Stripe. These are refreshed independently of the NGN/USDC feed
+ * since Stripe settles in the destination currency, not USDC. Issue #527.
+ */
+const USD_CROSS_RATES: Record<"gbp" | "eur", number> = { gbp: 0.78, eur: 0.92 };
+
+/**
+ * Converts an NGN amount into Stripe's minor units for `currency`, locking
+ * the rate at order creation time so later FX moves don't affect this charge.
+ */
+async function lockStripeAmount(
+  amountNgn: number,
+  currency: "usd" | "gbp" | "eur"
+): Promise<number> {
+  const { ngnPerUsdc } = await getExchangeRate(); // USDC ≈ USD peg
+  const usd = amountNgn / ngnPerUsdc;
+  const major = currency === "usd" ? usd : usd * USD_CROSS_RATES[currency];
+  return Math.round(major * 100);
+}
 
 /**
  * Converts a Nigerian Naira amount to its USDC equivalent using the live
@@ -176,15 +198,18 @@ export async function createGift(
   // International payments use Stripe embedded Payment Element — return the
   // PaymentIntent client secret instead of a hosted checkout URL.
   if (input.paymentProvider === "stripe") {
+    const stripeCurrency = input.currency ?? "usd";
+    const stripeAmountMinor = await lockStripeAmount(input.amountNgn, stripeCurrency);
     const intent = await getStripe().paymentIntents.create(
       {
-        amount: Math.round(Number(amountUsdc) * 100),
-        currency: "usd",
+        amount: stripeAmountMinor,
+        currency: stripeCurrency,
         automatic_payment_methods: { enabled: true },
-        metadata: { giftId: id, senderId, reference: paymentReference },
+        metadata: { giftId: id, senderId, reference: paymentReference, currency: stripeCurrency },
       },
       { idempotencyKey: paymentReference }
     );
+    await recordPaymentCurrency(id, stripeCurrency, stripeAmountMinor / 100);
     return { gift, paymentUrl: "", clientSecret: intent.client_secret ?? undefined };
   }
 
