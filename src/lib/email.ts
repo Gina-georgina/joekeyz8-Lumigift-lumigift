@@ -98,3 +98,29 @@ export async function sendClaimConfirmationEmail(to: string, data: GiftEmailData
     html: baseTemplate("Lumigift claimed!", body),
   });
 }
+
+export interface ReferralCreditEmailData {
+  referrerName: string;
+  rewardAmountNgn: number;
+  referredName?: string;
+}
+
+export async function sendReferralCreditEmail(to: string, data: ReferralCreditEmailData): Promise<void> {
+  const body = `
+    <p>Hi ${data.referrerName},</p>
+    <p>Great news — your referral reward has been credited! 🎉</p>
+    <p>${data.referredName ? `<strong>${data.referredName}</strong>` : "Someone you referred"} just funded their first Lumigift, so your reward is now in your account.</p>
+    <div class="highlight">
+      <p class="label">Reward Credited</p>
+      <p class="value">₦${data.rewardAmountNgn.toLocaleString("en-NG")}</p>
+    </div>
+    <p>Thank you for spreading the joy of gifting. Keep referring friends to earn more rewards!</p>
+    <a class="btn" href="${process.env.NEXT_PUBLIC_APP_URL ?? "https://lumigift.com"}/dashboard">View Your Rewards</a>
+  `;
+  await getResend().emails.send({
+    from: FROM,
+    to,
+    subject: "🎉 Your Lumigift referral reward has been credited!",
+    html: baseTemplate("Referral reward credited!", body),
+  });
+}

@@ -13,6 +13,7 @@ import { createAuditLog } from "./audit.service";
 import { sendGiftReceivedEmail } from "@/lib/email";
 import type { GiftCursorPosition } from "./gift-cursor";
 import { incrementFunnelCounter, recordFunnelTransition } from "@/lib/metrics";
+import { creditReferralOnFirstPayment } from "./referral.service";
 
 let _stripe: Stripe | null = null;
 function getStripe(): Stripe {
@@ -272,6 +273,19 @@ export async function updateGiftStatus(id: string, status: GiftStatus): Promise<
         newStatus: status,
       },
     });
+  }
+
+  // ── Referral reward credit on first successful gift funding ────────────────
+  // When a referred user funds their first gift, credit the referrer with the
+  // env-configurable reward amount. The referral service marks the reward as
+  // `applied` idempotently and sends the referrer an email notification.
+  // Failures here must never break the gift status update — log and continue.
+  if (status === "funded") {
+    try {
+      await creditReferralOnFirstPayment(gift.senderId, id);
+    } catch (err: unknown) {
+      console.error("[gift.service] Referral reward credit failed:", err);
+    }
   }
 
   return gift;
