@@ -10,6 +10,37 @@
   margin-bottom: var(--space-6, 1.5rem);
 }
 
+.actionButtons {
+  display: flex;
+  gap: var(--space-2, 0.5rem);
+}
+
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 0.5rem;
+  background: var(--color-surface, #fff);
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.actionButton:hover {
+  background: var(--color-surface-hover, #f3f4f6);
+  border-color: var(--color-border-strong, #d1d5db);
+}
+
+.actionButton:focus-visible {
+  outline: 2px solid var(--color-focus, #6366f1);
+  outline-offset: 2px;
+}
+
 .receipt {
   border: 1px solid var(--color-border, #e5e7eb);
   border-radius: 0.75rem;
@@ -84,14 +115,38 @@
 }
 
 @media print {
+  /* Strip navigation, sidebar, and interactive controls from the print view */
+  :global(header),
+  :global(nav),
+  :global(aside),
+  :global(footer),
+  :global(.no-print),
+  :global(button) {
+    display: none !important;
+  }
+
+  .actions {
+    display: none !important;
+  }
+
   .page {
     padding: 0;
+    margin: 0;
     max-width: none;
   }
 
   .receipt {
     border: 0;
     padding: 0;
+  }
+
+  .brand {
+    margin-bottom: var(--space-4, 1rem);
+  }
+
+  .logo {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .row {

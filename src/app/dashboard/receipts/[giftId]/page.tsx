@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { formatNGN } from "@/lib/currency";
@@ -19,10 +19,39 @@ async function fetchReceipt(giftId: string): Promise<ReceiptData> {
 /** Printable transaction receipt (issue #352). */
 export default function ReceiptPage({ params }: { params: Promise<{ giftId: string }> }) {
   const { giftId } = use(params);
+  const [shareStatus, setShareStatus] = useState<string | null>(null);
   const { data, status } = useQuery({
     queryKey: ["receipt", giftId],
     queryFn: () => fetchReceipt(giftId),
   });
+
+  async function handleShare() {
+    const url = typeof window !== "undefined" ? window.location.href : "";
+    const shareData = {
+      title: "Lumigift Transaction Receipt",
+      text: `Lumigift receipt for gift ${giftId}`,
+      url,
+    };
+
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share(shareData);
+        setShareStatus("Receipt shared.");
+      } catch (err) {
+        // User cancelled the share sheet — no need to surface an error.
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setShareStatus("Could not share the receipt.");
+      }
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareStatus("Receipt link copied to clipboard.");
+    } catch {
+      setShareStatus("Could not copy the receipt link.");
+    }
+  }
 
   if (status === "pending") {
     return (
@@ -63,7 +92,16 @@ export default function ReceiptPage({ params }: { params: Promise<{ giftId: stri
         <button type="button" className="btn btn--primary" onClick={() => window.print()}>
           Print receipt
         </button>
+        <button type="button" className="btn btn--secondary" onClick={handleShare}>
+          Share receipt
+        </button>
       </div>
+
+      {shareStatus && (
+        <p className="no-print" role="status">
+          {shareStatus}
+        </p>
+      )}
 
       <article className={`${styles.receipt} print-receipt`} aria-labelledby="receipt-title">
         <header className={styles.brand}>
