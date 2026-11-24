@@ -159,3 +159,29 @@ test("GiftCard — claimed state", async ({ page }) => {
   const card = page.locator("article").first();
   await expect(card).toHaveScreenshot("gift-card-claimed.png");
 });
+
+// ─── Gift detail loading skeleton ─────────────────────────────────────────────
+
+/**
+ * Visual snapshot of the `/gifts/[id]` loading skeleton (loading.tsx).
+ *
+ * The gift detail API response is delayed indefinitely so the route segment
+ * stays in its Suspense fallback (loading.tsx) while the screenshot is taken.
+ * The clock is frozen and the mocked payload matches the seed data so the
+ * skeleton renders deterministically across CI runs.
+ */
+test("GiftDetail — loading skeleton", async ({ page }) => {
+  await freezeClock(page);
+
+  // Never resolve the gift API request so loading.tsx remains rendered.
+  await page.route(`**/api/v1/gifts/${GIFT_LOCKED.id}`, () => {
+    /* intentionally left pending */
+  });
+
+  await page.goto(`/gifts/${GIFT_LOCKED.id}`, { waitUntil: "commit" });
+
+  // Wait for the skeleton container to be visible before snapshotting.
+  const skeleton = page.getByTestId("gift-detail-skeleton");
+  await expect(skeleton).toBeVisible();
+  await expect(skeleton).toHaveScreenshot("gift-detail-loading.png");
+});
