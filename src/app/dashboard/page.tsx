@@ -97,14 +97,14 @@ export default function DashboardPage() {
         <div className="container">
           <OfflineBanner />
           <h1 className={styles.title}>Your Gifts</h1>
-          {/* Issue #279: aria-busy + aria-label on skeleton wrapper; default 3 cards */}
+          {/* Issue #279, #465: aria-busy + aria-label on skeleton wrapper; count matches PAGE_SIZE to prevent layout shift */}
           <div
             className={styles.grid}
             aria-live="polite"
             aria-busy="true"
             aria-label="Loading gifts"
           >
-            <GiftCardSkeleton count={3} />
+            <GiftCardSkeleton count={PAGE_SIZE} />
           </div>
         </div>
       </div>
