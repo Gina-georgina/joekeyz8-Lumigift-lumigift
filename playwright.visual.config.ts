@@ -45,7 +45,7 @@ export default defineConfig({
     // ── Desktop ──────────────────────────────────────────────────────────────
     {
       name: "chromium",
-      testMatch: /components\.spec\.ts/,
+      testMatch: /components\.spec\.ts|gift-card-responsive\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
 
