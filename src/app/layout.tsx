@@ -7,6 +7,7 @@ import "@/styles/components.css";
 import { Navbar } from "@/components/layout/Navbar";
 import { TestnetBanner } from "@/components/ui/TestnetBanner";
 import { ServiceWorkerRegister } from "@/components/ui/ServiceWorkerRegister";
+import { InstallPrompt } from "@/components/ui/InstallPrompt";
 import { Providers } from "./providers";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -79,6 +80,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <Navbar />
           <TestnetBanner />
           <ServiceWorkerRegister />
+          <InstallPrompt />
           <main id="main-content">{children}</main>
         </Providers>
       </body>
