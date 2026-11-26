@@ -317,6 +317,14 @@
   line-height: var(--leading-relaxed);
 }
 
+/* ── Dark-mode empty state illustration (issue #470) ─────────────────────── */
+@media (prefers-color-scheme: dark) {
+  .emptyIconWrapper {
+    background-color: rgba(124, 58, 237, 0.15);
+    box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.3);
+  }
+}
+
 @media (max-width: 700px) {
   .analyticsHeader {
     align-items: flex-start;
