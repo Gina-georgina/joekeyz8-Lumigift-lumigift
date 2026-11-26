@@ -21,7 +21,7 @@
       "schedule": "0 9 * * *"
     },
     {
-      "path": "/api/v1/cron/cleanup-deleted-gifts",
+      "path": "/api/v1/cron/purge-deleted-accounts",
       "schedule": "0 3 * * *"
     }
   ]
