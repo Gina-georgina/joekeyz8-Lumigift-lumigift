@@ -77,6 +77,7 @@ export function GiftWizard() {
     watch,
     reset,
     formState: { errors },
+    reset,
   } = useForm<CreateGiftFormInput>({
     resolver: zodResolver(createGiftSchema),
     defaultValues: {
@@ -91,6 +92,9 @@ export function GiftWizard() {
     mode: "onTouched",
   });
 
+  // Track whether we've shown the restore draft banner
+  const [showRestoreBanner, setShowRestoreBanner] = useState(false);
+
   // Initialise step from draft (if available) so the wizard resumes after refresh.
   // Also re-sync step and form values whenever the draft changes — this covers
   // both the initial localStorage load (mount) and cross-tab storage events.
@@ -98,6 +102,16 @@ export function GiftWizard() {
 
   useEffect(() => {
     if (!draft) return;
+    // Show restore banner on mount if there's a draft with meaningful data
+    const hasMeaningfulData =
+      draft.recipientName ||
+      draft.recipientEmail ||
+      draft.amountNgn ||
+      draft.message ||
+      draft.unlockAt;
+    if (hasMeaningfulData) {
+      setShowRestoreBanner(true);
+    }
     // Never restore directly to the review step — require the user to complete
     // the flow again so no stale data is submitted.
     if (draft.step > STEP_OCCASION && draft.step < STEP_REVIEW) {
@@ -135,6 +149,27 @@ export function GiftWizard() {
       unlockAt: values.unlockAt,
       paymentProvider: values.paymentProvider,
     });
+  }
+
+  /** Accept the restored draft — keep the data and dismiss the banner. */
+  function acceptDraft() {
+    setShowRestoreBanner(false);
+  }
+
+  /** Discard the restored draft — clear localStorage and reset form. */
+  function discardDraft() {
+    clearDraft();
+    reset({
+      paymentProvider: "paystack",
+      recipientIsRegistered: false,
+      recipientName: "",
+      recipientEmail: "",
+      amountNgn: undefined,
+      message: "",
+      unlockAt: "",
+    });
+    setStep(STEP_OCCASION);
+    setShowRestoreBanner(false);
   }
 
   function handleTemplateSelect(tpl: GiftTemplate) {
@@ -246,6 +281,26 @@ export function GiftWizard() {
 
   return (
     <div className={styles.wrapper}>
+      {/* Restore draft banner — shown on mount if a draft exists in localStorage */}
+      {showRestoreBanner && (
+        <div
+          className={styles.restoreBanner}
+          role="status"
+          aria-live="polite"
+          aria-label="Draft restoration options"
+        >
+          <p className={styles.restoreMessage}>
+            You have a saved draft from a previous session. Would you like to restore it?
+          </p>
+          <div className={styles.restoreActions}>
+            <Button variant="secondary" onClick={discardDraft}>
+              Discard
+            </Button>
+            <Button onClick={acceptDraft}>Restore</Button>
+          </div>
+        </div>
+      )}
+
       {step > STEP_OCCASION && <WizardProgress currentStep={step} />}
 
       {/* Offline / reconnect banner — scoped to the review step where the

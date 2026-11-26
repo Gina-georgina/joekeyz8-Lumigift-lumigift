@@ -91,6 +91,22 @@
   /* Used as a safe fallback when reduced-motion is preferred */
   --transition-instant: 0.01ms;
 
+  /* Animation durations */
+  --duration-fast: 150ms;
+  --duration-base: 300ms;
+  --duration-slow: 500ms;
+
+  /* Pulse animation for skeleton loaders */
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
   /* Layout */
   --max-width-sm: 640px;
   --max-width-md: 768px;
