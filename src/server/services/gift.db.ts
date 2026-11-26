@@ -16,6 +16,33 @@ import { randomUUID } from "crypto";
 import pool, { readPool } from "@/lib/db";
 import type { Gift, GiftStatus } from "@/types";
 
+// ─── SQL safety ───────────────────────────────────────────────────────────────
+
+/**
+ * Allowed gift lifecycle values. Every raw SQL statement in this module is
+ * already fully parameterised ($1, $2, ...), but status values originate
+ * from caller-supplied strings (TS types do not exist at runtime). This
+ * whitelist is a defense-in-depth guard so a future caller can never smuggle
+ * anything other than a known status token into a query parameter.
+ */
+const VALID_GIFT_STATUSES: readonly GiftStatus[] = [
+  "draft",
+  "pending_payment",
+  "funded",
+  "locked",
+  "unlocked",
+  "claimed",
+  "expired_pending_refund",
+  "expired",
+  "cancelled",
+];
+
+function assertValidGiftStatus(status: string, label: string): void {
+  if (!VALID_GIFT_STATUSES.includes(status as GiftStatus)) {
+    throw new Error(`[gift.db] Invalid ${label}: ${JSON.stringify(status)}`);
+  }
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface CreateGiftDbInput {
@@ -176,6 +203,9 @@ export async function transitionGiftStatus(
   toStatus: GiftStatus,
   paymentStatus?: "success" | "failed" | "refunded"
 ): Promise<Gift | null> {
+  assertValidGiftStatus(fromStatus, "fromStatus");
+  assertValidGiftStatus(toStatus, "toStatus");
+
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
