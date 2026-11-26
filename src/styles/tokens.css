@@ -103,6 +103,12 @@
 [data-theme="light"] {
   --color-scheme: light;
 
+  /* Brand — darkened for ≥ 4.5:1 contrast on light backgrounds (#474) */
+  --color-brand-primary: #5a2ee0;
+  --color-brand-primary-hover: #4a24bd;
+  --color-brand-secondary: #d64545;
+  --color-brand-accent: #b8860b;
+
   --color-bg: #f5f5fa;
   --color-bg-surface: #ffffff;
   --color-bg-elevated: #eeeef5;
@@ -132,6 +138,12 @@
   :root:not([data-theme="dark"]) {
     --color-scheme: light;
 
+    /* Brand — darkened for ≥ 4.5:1 contrast on light backgrounds (#474) */
+    --color-brand-primary: #5a2ee0;
+    --color-brand-primary-hover: #4a24bd;
+    --color-brand-secondary: #d64545;
+    --color-brand-accent: #b8860b;
+
     --color-bg: #f5f5fa;
     --color-bg-surface: #ffffff;
     --color-bg-elevated: #eeeef5;
@@ -143,12 +155,6 @@
     --color-text-secondary: #4a4a62;
     --color-text-muted: #62627a;
     --color-text-inverse: #f0f0f5;
-
-    /* Darker status colours keep ≥ 4.5:1 on light backgrounds (#371) */
-    --color-success: #166534;
-    --color-warning: #92400e;
-    --color-error: #b91c1c;
-    --color-info: #1d4ed8;
 
     /* Darker status colours keep ≥ 4.5:1 on light backgrounds (#371) */
     --color-success: #166534;

@@ -37,6 +37,35 @@ const STEP_REVIEW = 4;
  */
 type MutationOutcome = "idle" | "pending" | "unknown" | "error" | "success";
 
+/**
+ * Converts a datetime value to an ISO 8601 UTC string.
+ *
+ * `DateTimeInput` already produces UTC ISO strings, but drafts restored from
+ * localStorage (or values typed by other means) may be local-time strings.
+ * Parsing with `new Date()` interprets offset-less strings as local time, so
+ * the resulting `toISOString()` is always UTC.
+ */
+function toUtcIsoString(value: string | undefined | null): string {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toISOString();
+}
+
+/**
+ * Formats a UTC ISO string as the user's local date/time, including a
+ * timezone indicator (e.g. "1 Jan 2025, 13:00 GMT+1").
+ */
+function formatLocalDateTime(utcIso: string): string {
+  const parsed = new Date(utcIso);
+  if (Number.isNaN(parsed.getTime())) return utcIso;
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZoneName: "short",
+  }).format(parsed);
+}
+
 export function GiftWizard() {
   const { draft, saveDraft, clearDraft } = useGiftDraft();
   const {
@@ -46,6 +75,7 @@ export function GiftWizard() {
     getValues,
     setValue,
     watch,
+    reset,
     formState: { errors },
   } = useForm<CreateGiftFormInput>({
     resolver: zodResolver(createGiftSchema),
@@ -145,6 +175,13 @@ export function GiftWizard() {
       // Track whether we received any HTTP response before a potential error
       let responseReceived = false;
 
+      // DateTimeInput already emits an ISO 8601 UTC string (e.g. "2025-01-01T12:00:00.000Z").
+      // Normalise defensively so the backend always receives UTC, never a local-time string.
+      const payload: CreateGiftFormInput = {
+        ...data,
+        unlockAt: toUtcIsoString(data.unlockAt),
+      };
+
       try {
         const res = await fetch("/api/gifts", {
           method: "POST",
@@ -154,7 +191,7 @@ export function GiftWizard() {
             // preventing a second gift from being created on reconnect.
             "Idempotency-Key": idempotencyKeyRef.current,
           },
-          body: JSON.stringify(data),
+          body: JSON.stringify(payload),
         });
 
         responseReceived = true;
@@ -302,6 +339,11 @@ export function GiftWizard() {
             error={errors.unlockAt?.message}
             required
           />
+          {getValues("unlockAt") && (
+            <p className={styles.localTimeHint} role="note">
+              Your local time: {formatLocalDateTime(getValues("unlockAt"))}
+            </p>
+          )}
           <div className={styles.nav}>
             <Button variant="secondary" onClick={back}>
               Back
