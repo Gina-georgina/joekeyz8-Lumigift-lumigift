@@ -129,8 +129,23 @@
 }
 
 @media print {
+  /* Strip navigation, sidebar, and interactive controls from the print view */
+  :global(header),
+  :global(nav),
+  :global(aside),
+  :global(footer),
+  :global(.no-print),
+  :global(button) {
+    display: none !important;
+  }
+
+  .actions {
+    display: none !important;
+  }
+
   .page {
     padding: 0;
+    margin: 0;
     max-width: none;
   }
 
@@ -141,6 +156,15 @@
   .receipt {
     border: 0;
     padding: 0;
+  }
+
+  .brand {
+    margin-bottom: var(--space-4, 1rem);
+  }
+
+  .logo {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .row {

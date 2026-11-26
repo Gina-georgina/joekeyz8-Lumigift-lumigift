@@ -102,7 +102,16 @@ export default function ReceiptPage({ params }: { params: Promise<{ giftId: stri
         <button type="button" className="btn btn--secondary" onClick={() => window.print()}>
           Print receipt
         </button>
+        <button type="button" className="btn btn--secondary" onClick={handleShare}>
+          Share receipt
+        </button>
       </div>
+
+      {shareStatus && (
+        <p className="no-print" role="status">
+          {shareStatus}
+        </p>
+      )}
 
       <article className={`${styles.receipt} print-receipt`} aria-labelledby="receipt-title">
         <header className={styles.brand}>
