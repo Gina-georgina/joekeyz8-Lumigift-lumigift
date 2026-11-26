@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { formatNGN } from "@/lib/currency";
 import { formatUnlockDate } from "@/lib/dateFormat";
+import { useToast } from "@/components/ui/Toast";
 import type { ApiResponse } from "@/types";
 import type { ReceiptData } from "@/server/services/transaction-history.service";
 import styles from "./page.module.css";
@@ -19,37 +20,37 @@ async function fetchReceipt(giftId: string): Promise<ReceiptData> {
 /** Printable transaction receipt (issue #352). */
 export default function ReceiptPage({ params }: { params: Promise<{ giftId: string }> }) {
   const { giftId } = use(params);
-  const [shareStatus, setShareStatus] = useState<string | null>(null);
+  const { showToast } = useToast();
+  const [isDownloading, setIsDownloading] = useState(false);
   const { data, status } = useQuery({
     queryKey: ["receipt", giftId],
     queryFn: () => fetchReceipt(giftId),
   });
 
-  async function handleShare() {
-    const url = typeof window !== "undefined" ? window.location.href : "";
-    const shareData = {
-      title: "Lumigift Transaction Receipt",
-      text: `Lumigift receipt for gift ${giftId}`,
-      url,
-    };
-
-    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-      try {
-        await navigator.share(shareData);
-        setShareStatus("Receipt shared.");
-      } catch (err) {
-        // User cancelled the share sheet — no need to surface an error.
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setShareStatus("Could not share the receipt.");
-      }
-      return;
-    }
-
+  async function handleDownload() {
+    setIsDownloading(true);
     try {
-      await navigator.clipboard.writeText(url);
-      setShareStatus("Receipt link copied to clipboard.");
+      const res = await fetch(
+        `/api/v1/transactions/${encodeURIComponent(giftId)}/receipt`,
+        { headers: { Accept: "application/pdf" } },
+      );
+      if (!res.ok) throw new Error(`Receipt download failed (${res.status})`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `lumigift-receipt-${giftId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
     } catch {
-      setShareStatus("Could not copy the receipt link.");
+      showToast({
+        variant: "error",
+        message: "Could not generate the receipt PDF. Please try again.",
+      });
+    } finally {
+      setIsDownloading(false);
     }
   }
 
@@ -89,7 +90,16 @@ export default function ReceiptPage({ params }: { params: Promise<{ giftId: stri
         <Link href="/dashboard" className="btn btn--secondary">
           ← Back
         </Link>
-        <button type="button" className="btn btn--primary" onClick={() => window.print()}>
+        <button
+          type="button"
+          className="btn btn--primary"
+          onClick={handleDownload}
+          disabled={isDownloading}
+          aria-busy={isDownloading}
+        >
+          {isDownloading ? "Generating PDF…" : "Download PDF"}
+        </button>
+        <button type="button" className="btn btn--secondary" onClick={() => window.print()}>
           Print receipt
         </button>
         <button type="button" className="btn btn--secondary" onClick={handleShare}>

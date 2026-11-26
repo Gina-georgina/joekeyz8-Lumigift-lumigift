@@ -57,7 +57,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       await updateGiftStatus(giftId, "pending_payment");
       const reason = slippage.reason === "rate_expired" ? "rate_expired" : "rate_slippage";
       return NextResponse.redirect(
-        new URL(`/gift/${giftId}/payment-failed?reason=${reason}`, req.url)
+        new URL(`/gifts/${giftId}/payment?status=failed&reason=${reason}`, req.url)
       );
     }
 
@@ -80,9 +80,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       console.error("[payments/callback] Referral credit failed:", err);
     }
 
-    return NextResponse.redirect(new URL(`/gift/${giftId}/success`, req.url));
+    return NextResponse.redirect(new URL(`/gifts/${giftId}/success`, req.url));
   }
 
   await updateGiftStatus(giftId, "pending_payment");
-  return NextResponse.redirect(new URL(`/gift/${giftId}/payment-failed`, req.url));
+  return NextResponse.redirect(new URL(`/gifts/${giftId}/payment?status=failed`, req.url));
 });
