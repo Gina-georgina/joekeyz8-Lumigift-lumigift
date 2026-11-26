@@ -113,7 +113,7 @@ export const POST = withErrorHandler(
             error: "Idempotency-Key header is required",
             code: "VALIDATION_ERROR",
           },
-          { status: 422 }
+          { status: 400 }
         );
       }
 
@@ -140,8 +140,9 @@ export const POST = withErrorHandler(
       }
 
       if (idempotencyResult.type === "replay") {
-        // Return the original response — gift was already created
-        return NextResponse.json(idempotencyResult.body, { status: idempotencyResult.status });
+        // Return the original response body — gift was already created.
+        // Duplicate requests within the TTL window return 200 with the cached payload.
+        return NextResponse.json(idempotencyResult.body, { status: 200 });
       }
       // ─────────────────────────────────────────────────────────────────────────
 
