@@ -36,7 +36,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     status: searchParams.get("status") ?? undefined,
     from: searchParams.get("from") ?? undefined,
     to: searchParams.get("to") ?? undefined,
-    q: searchParams.get("q") ?? undefined,
+    q: searchParams.get("search") ?? searchParams.get("q") ?? undefined,
   });
   if (!filterResult.success) {
     return NextResponse.json<ApiResponse<never>>(
