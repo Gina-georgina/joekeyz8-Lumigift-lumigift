@@ -26,6 +26,20 @@ const STEP_UNLOCK = 3;
 const STEP_REVIEW = 4;
 
 /**
+ * Human-readable labels for form fields, used in the validation error summary.
+ */
+const FIELD_LABELS: Partial<Record<keyof CreateGiftFormInput, string>> = {
+  recipientName: "Recipient's Name",
+  recipientPhone: "Recipient's Phone",
+  recipientEmail: "Recipient's Email",
+  amountNgn: "Gift Amount",
+  message: "Personal Message",
+  unlockAt: "Unlock Date & Time",
+  paymentProvider: "Payment Method",
+  themeId: "Theme",
+};
+
+/**
  * Outcome of the last mutation attempt.
  *
  * - `idle`    — no submission yet.

@@ -57,6 +57,57 @@
   margin: 0;
 }
 
+/* ── Error summary ──────────────────────────────────────────────────────── */
+.errorSummary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-error);
+  background-color: rgba(220, 38, 38, 0.08);
+  border: 2px solid var(--color-error);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--space-3) var(--space-4);
+  margin: 0;
+}
+
+.errorSummary:focus {
+  outline: 3px solid var(--color-error);
+  outline-offset: 2px;
+}
+
+.errorSummaryHeading {
+  font-size: var(--text-base, 1rem);
+  font-weight: var(--font-bold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.errorSummaryList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1, 0.25rem);
+  margin: 0;
+  padding-left: var(--space-5, 1.25rem);
+  list-style: disc;
+}
+
+.errorSummaryLink {
+  color: var(--color-error);
+  text-decoration: underline;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.errorSummaryLink:focus-visible {
+  outline: 3px solid var(--color-error);
+  outline-offset: 2px;
+}
+
 /*
  * Unknown outcome — shown when the connection dropped mid-flight and we
  * cannot confirm whether the server received the request.
