@@ -84,6 +84,47 @@ export async function sendUnlockReminderEmail(to: string, data: GiftEmailData): 
   });
 }
 
+/**
+ * Sent when a user requests account deletion (Issue #516). Gives them a
+ * reactivation link that cancels the scheduled deletion within the 30-day
+ * grace period.
+ */
+export async function sendAccountDeletionEmail(to: string, cancelUrl: string): Promise<void> {
+  const body = `
+    <p>We're sorry to see you go.</p>
+    <p>Your Lumigift account is scheduled for permanent deletion in 30 days.
+    Until then your data is untouched — change your mind any time by clicking
+    the link below.</p>
+    <p><a class="btn" href="${cancelUrl}">Cancel account deletion</a></p>
+    <p>If you didn't request this, click the link above immediately to keep
+    your account.</p>
+  `;
+  await getResend().emails.send({
+    from: FROM,
+    to,
+    subject: "Your Lumigift account is scheduled for deletion",
+    html: baseTemplate("Account deletion scheduled", body),
+  });
+}
+
+/**
+ * Sent when a GDPR/NDPR data export job is ready to download (Issue #515).
+ * The link expires in 1 hour, matching NDPR's "secure, time-bound" guidance.
+ */
+export async function sendDataExportReadyEmail(to: string, downloadUrl: string): Promise<void> {
+  const body = `
+    <p>Your Lumigift data export is ready.</p>
+    <p>For security, this link expires in 1 hour and can only be used once.</p>
+    <p><a class="btn" href="${downloadUrl}">Download your data</a></p>
+  `;
+  await getResend().emails.send({
+    from: FROM,
+    to,
+    subject: "Your Lumigift data export is ready",
+    html: baseTemplate("Your data export is ready", body),
+  });
+}
+
 export async function sendClaimConfirmationEmail(to: string, data: GiftEmailData): Promise<void> {
   const body = `
     <p>Hi ${data.recipientName},</p>
@@ -99,25 +140,28 @@ export async function sendClaimConfirmationEmail(to: string, data: GiftEmailData
   });
 }
 
-/**
- * Sends an occasion reminder email to the occasion owner with a deep link to
- * `/send`, pre-filled with the saved contact. Issue #519.
- */
-export async function sendOccasionReminderEmail(
-  to: string,
-  data: { contactName: string; label: string; occasionId: string; daysUntil: number }
-): Promise<void> {
-  const when = data.daysUntil <= 1 ? "tomorrow" : `in ${data.daysUntil} days`;
-  const link = `${process.env.APP_URL ?? "https://lumigift.app"}/send?occasionId=${encodeURIComponent(data.occasionId)}`;
+export interface ReferralCreditEmailData {
+  referrerName: string;
+  rewardAmountNgn: number;
+  referredName?: string;
+}
+
+export async function sendReferralCreditEmail(to: string, data: ReferralCreditEmailData): Promise<void> {
   const body = `
-    <p>${data.contactName}'s ${data.label} is ${when}! 🎁</p>
-    <p>Send a time-locked Lumigift now:</p>
-    <a class="btn" href="${link}">Send a gift</a>
+    <p>Hi ${data.referrerName},</p>
+    <p>Great news — your referral reward has been credited! 🎉</p>
+    <p>${data.referredName ? `<strong>${data.referredName}</strong>` : "Someone you referred"} just funded their first Lumigift, so your reward is now in your account.</p>
+    <div class="highlight">
+      <p class="label">Reward Credited</p>
+      <p class="value">₦${data.rewardAmountNgn.toLocaleString("en-NG")}</p>
+    </div>
+    <p>Thank you for spreading the joy of gifting. Keep referring friends to earn more rewards!</p>
+    <a class="btn" href="${process.env.NEXT_PUBLIC_APP_URL ?? "https://lumigift.com"}/dashboard">View Your Rewards</a>
   `;
   await getResend().emails.send({
     from: FROM,
     to,
-    subject: `${data.contactName}'s ${data.label} is ${when}`,
-    html: baseTemplate("Occasion reminder", body),
+    subject: "🎉 Your Lumigift referral reward has been credited!",
+    html: baseTemplate("Referral reward credited!", body),
   });
 }
