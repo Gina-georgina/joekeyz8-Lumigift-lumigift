@@ -264,6 +264,41 @@ export async function getBulkGiftOrder(userId: string, id: string): Promise<Bulk
   };
 }
 
+/**
+ * Loads an order for invoice download, enforcing that the requesting user owns it.
+ * Throws 404 when the order does not exist and 403 when it belongs to someone else.
+ */
+export async function getBulkGiftOrderForInvoice(
+  userId: string,
+  id: string
+): Promise<BulkGiftOrder> {
+  const { rows } = await pool.query<{
+    id: string;
+    user_id: string;
+    payment_reference: string;
+    total_ngn: string;
+    items: BulkGiftItem[];
+    status: string;
+    created_at: Date;
+  }>("SELECT * FROM bulk_gift_orders WHERE id = $1", [id]);
+  const row = rows[0];
+  if (!row) {
+    throw new AppError(ERROR_CODES.NOT_FOUND, "Bulk gift order not found", 404);
+  }
+  if (row.user_id !== userId) {
+    throw new AppError(ERROR_CODES.FORBIDDEN, "You do not have access to this invoice", 403);
+  }
+  return {
+    id: row.id,
+    userId: row.user_id,
+    paymentReference: row.payment_reference,
+    totalNgn: Number(row.total_ngn),
+    items: row.items,
+    status: row.status,
+    createdAt: row.created_at,
+  };
+}
+
 /** Dedicated account manager contact shown to business accounts. */
 export function getAccountManagerContact() {
   return {
@@ -282,11 +317,21 @@ function escapePdfText(text: string): string {
     .replace(/\)/g, "\\)");
 }
 
+export interface InvoicePdfOptions {
+  /** Business name printed on the invoice; falls back to the app name. */
+  businessName?: string;
+  /** USDC equivalent of the order total. */
+  totalUsdc?: number;
+  /** VAT amount in NGN, if applicable. */
+  vatNgn?: number;
+}
+
 /** Builds a minimal single-page PDF invoice (monospace Courier, no external dependency). */
-export function generateInvoicePdf(order: BulkGiftOrder): Buffer {
+export function generateInvoicePdf(order: BulkGiftOrder, options: InvoicePdfOptions = {}): Buffer {
   const fmt = (n: number) => `NGN ${n.toLocaleString("en-NG")}`;
+  const businessName = options.businessName ?? serverConfig.app.name;
   const lines = [
-    `${serverConfig.app.name} - Invoice`,
+    `${businessName} - Invoice`,
     "",
     `Invoice #: ${order.id}`,
     `Payment reference: ${order.paymentReference}`,
@@ -302,8 +347,10 @@ export function generateInvoicePdf(order: BulkGiftOrder): Buffer {
       ),
     ...(order.items.length > 40 ? [`... and ${order.items.length - 40} more recipients`] : []),
     "",
-    `Recipients: ${order.items.length}`,
+    `Gift count: ${order.items.length}`,
     `Total: ${fmt(order.totalNgn)}`,
+    ...(options.totalUsdc !== undefined ? [`Total USDC: ${options.totalUsdc.toFixed(2)} USDC`] : []),
+    ...(options.vatNgn !== undefined ? [`VAT: ${fmt(options.vatNgn)}`] : []),
   ];
 
   const content = [

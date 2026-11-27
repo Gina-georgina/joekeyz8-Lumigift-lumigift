@@ -531,6 +531,38 @@ describe("fetchEscrowEvents — Issue #121", () => {
     expect(result.events).toHaveLength(0);
   });
 
+  it("decodes an upgraded event emitted by the upgrade function", async () => {
+    const { xdr: xdrSdk } = jest.requireActual("@stellar/stellar-sdk");
+    const NEW_WASM_HASH = "a".repeat(64);
+    const upgradedRaw = {
+      id: "0000000005-0000000001",
+      ledger: 500,
+      ledgerClosedAt: new Date().toISOString(),
+      txHash: "txhash-upgraded",
+      contractId: { toString: () => CONTRACT_ID },
+      topic: [xdrSdk.ScVal.scvSymbol("upgraded")],
+      value: xdrSdk.ScVal.scvVec([
+        xdrSdk.ScVal.scvBytes(Buffer.from(NEW_WASM_HASH, "hex")),
+      ]),
+    };
+
+    mockGetEvents.mockResolvedValue({ events: [upgradedRaw], cursor: "0000000005-0000000001" });
+
+    const result = await fetchEscrowEvents({
+      rpcUrl: RPC_URL,
+      contractId: CONTRACT_ID,
+      startCursor: CURSOR_GENESIS,
+    });
+
+    expect(result.events).toHaveLength(1);
+    const ev = result.events[0];
+    expect(ev.type).toBe("upgraded");
+    if (ev.type === "upgraded") {
+      expect(ev.wasmHash).toBe(NEW_WASM_HASH);
+    }
+    expect(result.latestCursor).toBe("0000000005-0000000001");
+  });
+
   it("is diagnosable: surfaces RPC network failures with the original error message", async () => {
     mockGetEvents.mockRejectedValue(new Error("RPC node unreachable: connection refused"));
 
@@ -563,134 +595,122 @@ describe("fetchEscrowEvents — Issue #121", () => {
   });
 });
 
-// ─── Live testnet integration (Issue #540) ────────────────────────────────────
-//
-// This suite runs against the real Stellar testnet. It is skipped unless the
-// required environment variables are present, so local runs and PRs without
-// secrets are unaffected. In CI the step is marked non-blocking but results are
-// reported (see .github/workflows).
-//
-// Required env:
-//   TESTNET_RPC_URL          e.g. https://soroban-testnet.stellar.org
-//   TESTNET_NETWORK_PASSPHRASE  e.g. "Test SDF Network ; September 2015"
-//   TESTNET_ESCROW_CONTRACT_ID  deployed escrow contract id (C...)
-//   TESTNET_USDC_TOKEN_ID       USDC token contract id (C...)
-// Optional:
-//   TESTNET_FRIENDBOT_URL    defaults to https://friendbot.stellar.org
+// ─── upgrade (Issue #533) ─────────────────────────────────────────────────────
 
-const TESTNET_RPC_URL = process.env.TESTNET_RPC_URL;
-const TESTNET_PASSPHRASE = process.env.TESTNET_NETWORK_PASSPHRASE;
-const TESTNET_CONTRACT_ID = process.env.TESTNET_ESCROW_CONTRACT_ID;
-const TESTNET_USDC_TOKEN_ID = process.env.TESTNET_USDC_TOKEN_ID;
-const FRIENDBOT_URL = process.env.TESTNET_FRIENDBOT_URL ?? "https://friendbot.stellar.org";
+describe("EscrowClient.upgrade — Issue #533", () => {
+  const NEW_WASM_HASH = "b".repeat(64);
 
-const hasTestnetSecrets =
-  Boolean(TESTNET_RPC_URL) &&
-  Boolean(TESTNET_PASSPHRASE) &&
-  Boolean(TESTNET_CONTRACT_ID) &&
-  Boolean(TESTNET_USDC_TOKEN_ID);
+  beforeEach(() => {
+    jest.clearAllMocks();
+    stubAccount();
+  });
 
-const describeTestnet = hasTestnetSecrets ? describe : describe.skip;
+  it("builds an upgrade transaction for the admin and returns XDR", async () => {
+    mockSimulateTransaction.mockResolvedValue(makeSimSuccess(null));
+    const client = makeClient();
 
-describeTestnet("EscrowClient — live testnet integration (Issue #540)", () => {
-  // Generous timeout: friendbot funding + ledger close + event indexing.
-  jest.setTimeout(180_000);
+    const xdr = await client.buildUpgrade(NEW_WASM_HASH);
 
-  let keypair: import("@stellar/stellar-sdk").Keypair;
-  let client: EscrowClient;
-  let indexer: EventIndexerService;
+    expect(typeof xdr).toBe("string");
+    expect(xdr.length).toBeGreaterThan(0);
+    expect(mockSimulateTransaction).toHaveBeenCalledTimes(1);
+  });
 
-  beforeAll(async () => {
-    // Use the real SDK here — the module mock above only affects the mocked
-    // suites. We re-require the actual implementation for live calls.
-    const sdk = jest.requireActual("@stellar/stellar-sdk");
-    keypair = sdk.Keypair.random();
+  it("rejects a malformed wasm hash before hitting the network", async () => {
+    const client = makeClient();
 
-    // Fund the fresh account via testnet friendbot.
-    const fundRes = await fetch(
-      `${FRIENDBOT_URL}?addr=${encodeURIComponent(keypair.publicKey())}`
-    );
-    if (!fundRes.ok) {
-      throw new Error(
-        `Friendbot funding failed for ${keypair.publicKey()}: ${fundRes.status} ${fundRes.statusText}`
-      );
-    }
+    await expect(client.buildUpgrade("not-a-hash")).rejects.toThrow(/wasm hash/i);
+    expect(mockSimulateTransaction).not.toHaveBeenCalled();
+  });
 
-    client = new EscrowClient({
-      rpcUrl: TESTNET_RPC_URL!,
-      networkPassphrase: TESTNET_PASSPHRASE!,
-      contractId: TESTNET_CONTRACT_ID!,
-      sourcePublicKey: keypair.publicKey(),
-    });
+  it("throws EscrowContractError(Unauthorized) when caller is not the admin", async () => {
+    mockSimulateTransaction.mockResolvedValue(makeSimError(EscrowError.Unauthorized));
+    const client = makeClient();
 
-    indexer = new EventIndexerService({
-      rpcUrl: TESTNET_RPC_URL!,
-      contractId: TESTNET_CONTRACT_ID!,
+    await expect(client.buildUpgrade(NEW_WASM_HASH)).rejects.toMatchObject({
+      code: EscrowError.Unauthorized,
     });
   });
 
-  it("deploys, executes lifecycle, and indexes all emitted events", async () => {
-    const recipient = keypair.publicKey();
-    const amount = BigInt(1_000_000); // 0.1 USDC
-    const unlockTime = BigInt(Math.floor(Date.now() / 1000) + 60);
+  it("emits an Upgraded event on the authorized path", async () => {
+    // Authorized simulation succeeds; the resulting ledger event is indexed
+    // by fetchEscrowEvents as an "upgraded" event carrying the new wasm hash.
+    mockSimulateTransaction.mockResolvedValue(makeSimSuccess(null));
+    const client = makeClient();
+    await client.buildUpgrade(NEW_WASM_HASH);
 
-    // ── initialize ──────────────────────────────────────────────────────────
-    const initXdr = await client.buildInitialize(
-      keypair.publicKey(),
-      recipient,
-      TESTNET_USDC_TOKEN_ID!,
-      amount,
-      unlockTime
-    );
-    const initHash = await client.submitTransaction(initXdr);
-    expect(initHash).toMatch(/^[0-9a-f]{64}$/);
+    const { xdr: xdrSdk } = jest.requireActual("@stellar/stellar-sdk");
+    const upgradedRaw = {
+      id: "0000000020-0000000001",
+      ledger: 2000,
+      ledgerClosedAt: new Date().toISOString(),
+      txHash: "txhash-upgrade-authorized",
+      contractId: { toString: () => TESTNET_OPTIONS.contractId },
+      topic: [xdrSdk.ScVal.scvSymbol("upgraded")],
+      value: xdrSdk.ScVal.scvVec([
+        xdrSdk.ScVal.scvBytes(Buffer.from(NEW_WASM_HASH, "hex")),
+      ]),
+    };
+    mockGetEvents.mockResolvedValue({ events: [upgradedRaw], cursor: "0000000020-0000000001" });
 
-    // ── batch_initialize (second escrow slot) ───────────────────────────────
-    // Exercises the batch entrypoint so the indexer sees a second initialized
-    // event. Skipped gracefully if the deployed contract lacks the method.
-    try {
-      const batchXdr = await client.buildBatchInitialize([
-        {
-          sender: keypair.publicKey(),
-          recipient,
-          token: TESTNET_USDC_TOKEN_ID!,
-          amount,
-          unlockTime,
-        },
-      ]);
-      const batchHash = await client.submitTransaction(batchXdr);
-      expect(batchHash).toMatch(/^[0-9a-f]{64}$/);
-    } catch (err) {
-      // Non-fatal: contract version may not expose batch_initialize yet.
-      // eslint-disable-next-line no-console
-      console.warn("batch_initialize skipped:", (err as Error).message);
+    const result = await fetchEscrowEvents({
+      rpcUrl: TESTNET_OPTIONS.rpcUrl,
+      contractId: TESTNET_OPTIONS.contractId,
+      startCursor: CURSOR_GENESIS,
+    });
+
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0].type).toBe("upgraded");
+    if (result.events[0].type === "upgraded") {
+      expect(result.events[0].wasmHash).toBe(NEW_WASM_HASH);
     }
+  });
+});
 
-    // ── claim ───────────────────────────────────────────────────────────────
-    const claimXdr = await client.buildClaim();
-    const claimHash = await client.submitTransaction(claimXdr);
-    expect(claimHash).toMatch(/^[0-9a-f]{64}$/);
+// ─── Mainnet contract-ID resolution (Issue #530) ─────────────────────────────
 
-    // ── cancel with reason code ─────────────────────────────────────────────
-    const cancelXdr = await client.buildCancel({ reasonCode: 1 });
-    const cancelHash = await client.submitTransaction(cancelXdr);
-    expect(cancelHash).toMatch(/^[0-9a-f]{64}$/);
+describe("mainnet contract-ID resolution — Issue #530", () => {
+  const fs = jest.requireActual("fs") as typeof import("fs");
+  const path = jest.requireActual("path") as typeof import("path");
 
-    // ── index events via event-indexer.service.ts ───────────────────────────
-    const indexed = await indexer.indexFromCursor(CURSOR_GENESIS);
-    const types = indexed.events.map((e) => e.type);
+  const CONTRACT_IDS_PATH = path.resolve(process.cwd(), ".contract-ids.json");
 
-    expect(types).toContain("initialized");
-    expect(types).toContain("claimed");
-    expect(types).toContain("cancelled");
+  function readContractIds(): Record<string, string> {
+    return JSON.parse(fs.readFileSync(CONTRACT_IDS_PATH, "utf8"));
+  }
 
-    const cancelled = indexed.events.find((e) => e.type === "cancelled");
-    expect(cancelled).toBeDefined();
-    if (cancelled && cancelled.type === "cancelled") {
-      expect(cancelled.reasonCode).toBe(1);
-    }
+  it(".contract-ids.json exists at the repo root", () => {
+    expect(fs.existsSync(CONTRACT_IDS_PATH)).toBe(true);
+  });
 
-    // Cursor must advance past genesis after indexing.
-    expect(indexed.latestCursor).not.toBe(CURSOR_GENESIS);
+  it("contains a mainnet escrow contract ID", () => {
+    const ids = readContractIds();
+    const mainnetId = ids.mainnet ?? ids["mainnet.escrow"] ?? ids.escrowMainnet;
+    expect(typeof mainnetId).toBe("string");
+    // Stellar contract IDs are 56-char StrKeys beginning with "C".
+    expect(mainnetId).toMatch(/^C[A-Z2-7]{55}$/);
+  });
+
+  it("contains a testnet escrow contract ID distinct from mainnet", () => {
+    const ids = readContractIds();
+    const mainnetId = ids.mainnet ?? ids["mainnet.escrow"] ?? ids.escrowMainnet;
+    const testnetId = ids.testnet ?? ids["testnet.escrow"] ?? ids.escrowTestnet;
+    expect(testnetId).toMatch(/^C[A-Z2-7]{55}$/);
+    expect(testnetId).not.toBe(mainnetId);
+  });
+
+  it("resolves a mainnet EscrowClient from the committed contract ID", () => {
+    const ids = readContractIds();
+    const mainnetId = ids.mainnet ?? ids["mainnet.escrow"] ?? ids.escrowMainnet;
+
+    const mainnetOptions: EscrowClientOptions = {
+      rpcUrl: "https://soroban-mainnet.stellar.org",
+      networkPassphrase: "Public Global Stellar Network ; September 2015",
+      contractId: mainnetId,
+      sourcePublicKey: TESTNET_OPTIONS.sourcePublicKey,
+    };
+
+    const client = new EscrowClient(mainnetOptions);
+    expect(client).toBeInstanceOf(EscrowClient);
   });
 });

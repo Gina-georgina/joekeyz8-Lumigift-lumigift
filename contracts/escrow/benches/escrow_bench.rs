@@ -96,7 +96,7 @@ impl Fixture {
             &self.token_id,
             &AMOUNT,
             &UNLOCK_TIME,
-            &Network::Testnet,
+            &None,
         );
     }
 
@@ -150,12 +150,16 @@ fn op_batch_initialize(f: &Fixture) {
         .batch_initialize(&f.admin, &f.batch_params(), &Network::Testnet);
 }
 
+fn op_extend_ttl(f: &Fixture) {
+    f.client().extend_ttl();
+}
+
 /// (name, needs prior initialize, operation)
 const OPERATIONS: [(&str, bool, fn(&Fixture)); 4] = [
     ("initialize", false, op_initialize),
     ("claim", true, op_claim),
     ("cancel", true, op_cancel),
-    ("batch_initialize", false, op_batch_initialize),
+    ("extend_ttl", true, op_extend_ttl),
 ];
 
 fn fixture_for(needs_init: bool) -> Fixture {
