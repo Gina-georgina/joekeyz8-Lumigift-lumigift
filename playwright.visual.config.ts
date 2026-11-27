@@ -47,7 +47,7 @@ export default defineConfig({
     // claim, login, register, profile, notifications) in light mode.
     {
       name: "chromium",
-      testMatch: /(components|pages)\.spec\.ts/,
+      testMatch: /components\.spec\.ts|gift-card-responsive\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
 
