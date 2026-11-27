@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   reconcilePendingPayments,
   getDeadLetteredGiftIds,
+  getUnresolvedReconciliationErrors,
 } from "@/server/services/payment-reconciliation.service";
 import {
   recordCronSuccess,
@@ -54,6 +55,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   try {
     const result = await reconcilePendingPayments();
     const deadLettered = await getDeadLetteredGiftIds();
+    const unresolvedErrors = await getUnresolvedReconciliationErrors();
     const durationMs = Date.now() - startedAt;
 
     log.info(
@@ -64,13 +66,20 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     await pingHealthcheck(); // success ping
 
     return NextResponse.json<
-      ApiResponse<ReconcileResult & { durationMs: number; deadLetteredTotal: number }>
+      ApiResponse<
+        ReconcileResult & {
+          durationMs: number;
+          deadLetteredTotal: number;
+          unresolvedReconciliationErrors: number;
+        }
+      >
     >({
       success: true,
       data: {
         ...result,
         durationMs,
         deadLetteredTotal: deadLettered.length,
+        unresolvedReconciliationErrors: unresolvedErrors.length,
       },
     });
   } catch (err) {
