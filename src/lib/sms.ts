@@ -324,3 +324,35 @@ export async function sendExpiryGraceReminder(
     api_key: serverConfig.termii.apiKey,
   });
 }
+
+/**
+ * Sends an occasion reminder SMS to the occasion owner, with a deep link to
+ * `/send` pre-filled with the saved contact so they can start a gift in one
+ * tap. Issue #519.
+ *
+ * @param phone - E.164-formatted destination phone number (the occasion owner).
+ * @param contactName - The saved contact's name for this occasion.
+ * @param label - The occasion label (e.g. "Birthday", "Anniversary").
+ * @param occasionId - Used to pre-fill the `/send` link.
+ * @param daysUntil - How many days remain until the occasion (7 or 1).
+ */
+export async function sendOccasionReminder(
+  phone: string,
+  contactName: string,
+  label: string,
+  occasionId: string,
+  daysUntil: number
+): Promise<void> {
+  const when = daysUntil <= 1 ? "tomorrow" : `in ${daysUntil} days`;
+  const link = `${serverConfig.app.url}/send?occasionId=${encodeURIComponent(occasionId)}`;
+  await termiiClient.post("/sms/send", {
+    to: phone,
+    from: serverConfig.termii.senderId,
+    sms:
+      `Lumigift: ${contactName}'s ${label} is ${when}! 🎁\n` +
+      `Send a time-locked gift now: ${link}`,
+    type: "plain",
+    channel: "generic",
+    api_key: serverConfig.termii.apiKey,
+  });
+}
